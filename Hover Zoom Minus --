@@ -1,0 +1,292 @@
+// ==UserScript==
+// @name             Hover Zoom Minus --
+// @namespace        Hover Zoom Minus --
+// @version          1.0
+// @description      image popup: zoom, pan, scroll
+// @author           Ein, Copilot AI
+// @match            *://*/*
+// @license          MIT
+// @grant            none
+// ==/UserScript==
+
+// 1. to use hover over the image(container) to view a popup of the target image
+// 2. to zoom in/out use wheel up/down. to reset press the scroll button
+// 3. click left mouse to lock popup this will make it move along with the mouse, click again to release
+// 4. while being locked the wheel up/down will act as scroll up/down
+// 5. to turn on/off hover at the bottom of the page
+
+(function() {
+    'use strict';
+
+    // Configuration ----------------------------------------------------------
+
+    // Define regexp of web page you want HoverZoomMinus to run with,
+    // 1st array value - default status at start of page: '1' for on, '0' for off
+    // 2nd array value - spawn position for popup: 'center' for center, '' for cursor position
+    // 3rd array value - allowed interval for spawning popup; i.e. when exited on popup but imedietly touches an img container thus making it blinks or unsuable, experiment it with the right number
+
+    const siteConfig = {
+        '^(.*\\.)?reddit\\.com\\/.*$': [1, 'center', '0'],
+        '^(.*\\.)?9gag\\.com$\\/.*$': [1, 'center', '100'],
+        '^(.*\\.)?feedly\\.com\\/.*$': [1, 'center', '200'],
+        '^(.*\\.)?boards\\.4chan\\.org\\/.*$': [1, '', '400'],
+        '^(.*\\.)?www\\.deviantart\\.com\\/.*$': [0, 'center', '300']
+    };
+
+    // image container [hover area where popup triggers]
+    const imgContainers = `
+    /* ------- reddit */ ._3Oa0THmZ3f5iZXAQ0hBJ0k > div, ._35oEP5zLnhKEbj5BlkTBUA, ._1ti9kvv_PMZEF2phzAjsGW > div, ._28TEYBuEdOuE3kN6UyoKMa div, ._3Oa0THmZ3f5iZXAQ0hBJ0k.WjuR4W-BBrvdtABBeKUMx div,
+    /* --------- 9gag */ .post-container .post-view > picture,
+    /* ------- feedly */ .PinableImageContainer, .entryBody,
+    /* -------- 4chan */ div.post div.file a,
+    /* --- deviantart */ ._3_LJY, ._2e1g3, ._2SlAD
+    `;
+    // target img
+    const imgElements = `
+    /* ------- reddit */ ._2_tDEnGMLxpM6uOa2kaDB3, ._1dwExqTGJH2jnA-MYGkEL-,
+    /* --------- 9gag */ .post-container .post-view > picture > img,
+    /* ------- feedly */ .pinable, .entryBody img,
+    /* -------- 4chan */ div.post div.file img:nth-child(2), div.post div.file img:nth-child(1), ._3Oa0THmZ3f5iZXAQ0hBJ0k.WjuR4W-BBrvdtABBeKUMx img,
+    /* --- deviantart */ ._3_LJY img._2e1g3 img, ._2SlAD img
+    `;
+    // excluded element
+    const nopeElements = `
+    /* ------- reddit */ ._2ED-O3JtIcOqp8iIL1G5cg
+    `;
+
+    //-------------------------------------------------------------------------
+
+    // Variables
+    const currentHref = window.location.href;
+    let enableP, positionP, intervalP, URLmatched;
+    Object.keys(siteConfig).some((config) => {
+        const regex = new RegExp(config);
+        if (currentHref.match(regex)) {
+            [enableP, positionP, intervalP] = siteConfig[config];
+            URLmatched = true;
+            return true;
+        }
+    });
+
+    // The HoverZoomMinus Function---------------------------------------------
+    function HoverZoomMinus() {
+
+        // Style for the popup image
+        const style = document.createElement('style');
+        style.type = 'text/css';
+        style.innerHTML = `
+        .popup-image {
+        max-height: calc(90vh - 10px);
+        z-index: 1000;
+        display: none;
+        cursor: move;}`;
+        document.head.appendChild(style);
+
+        // Creating the popup image and backdrop
+        const popup = document.createElement('img');
+        popup.className = 'popup-image';
+        document.body.appendChild(popup);
+        const backdrop = document.createElement('div');
+        backdrop.className = 'popup-backdrop';
+        backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        display: none;`;
+        document.body.appendChild(backdrop);
+
+        //-------------------------------------------------------------------------
+
+        // Zoom and pan
+        let isLocked = false;
+        let offsetX, offsetY;
+        let scale = 1;
+        const ZOOM_SPEED = 0.005;
+
+        popup.addEventListener('click', function(event) {
+            isLocked = !isLocked;
+            if (isLocked) {
+                let rect = popup.getBoundingClientRect();
+                offsetX = event.clientX - rect.left - (rect.width / 2);
+                offsetY = event.clientY - rect.top - (rect.height / 2);
+            }
+        });
+
+        document.addEventListener('mousemove', function(event) {
+            if (isLocked) {
+                popup.style.left = (event.clientX - offsetX) + 'px';
+                popup.style.top = (event.clientY - offsetY) + 'px';
+            }
+        });
+
+        function ZoomOrSroll(event) {
+            event.preventDefault();
+            if (isLocked) {
+                let deltaY = event.deltaY * -ZOOM_SPEED;
+                let newTop = parseInt(popup.style.top) || 0;
+                newTop += deltaY * 100;
+                popup.style.top = newTop + 'px';
+
+                offsetY -= deltaY * 100;
+            } else {
+                scale += event.deltaY * -ZOOM_SPEED;
+                scale = Math.min(Math.max(0.125, scale), 10);
+                popup.style.transform = `translate(-50%, -50%) scale(${scale})`;
+            }
+        }
+
+        popup.addEventListener('wheel', ZoomOrSroll);
+
+        //-------------------------------------------------------------------------
+
+        // show popup
+        function showPopup(src, mouseX, mouseY) {
+            popup.src = src;
+            popup.style.display = 'block';
+            popup.style.position = 'fixed';
+            popup.style.transform = 'translate(-50%, -50%)';
+            backdrop.style.display = 'block';
+            backdrop.style.zIndex = '999';
+            backdrop.style.backdropFilter = 'blur(10px)';
+
+            if (positionP === 'center') {
+                popup.style.top = '50%';
+                popup.style.left = '50%';
+            } else {
+                popup.style.top = `${mouseY}px`;
+                popup.style.left = `${mouseX}px`;
+            }
+        }
+
+        let popupTimer;
+        document.addEventListener('mouseover', function(e) {
+
+            if (popupTimer) return;
+
+            let target = e.target.closest(imgContainers);
+            if (!target) return;
+            if (target.querySelector(nopeElements)) return;
+
+            let currentContainer = target;
+            const imageElement = currentContainer.querySelector(imgElements);
+            if (imageElement) {
+                if (intervalP === '') {
+                    if (positionP === 'center') {
+                        showPopup(imageElement.src);
+                    } else {
+                        showPopup(imageElement.src, e.clientX, e.clientY);
+                    }
+                } else {
+                    popupTimer = setTimeout(() => {
+                        if (positionP === 'center') {
+                            showPopup(imageElement.src);
+                        } else {
+                            showPopup(imageElement.src, e.clientX, e.clientY);
+                        }
+                        popupTimer = null;
+                    }, parseInt(intervalP));
+                }
+            }
+        });
+
+        //-------------------------------------------------------------------------
+
+        // hide popup
+        function hidePopup() {
+            if (popupTimer) {
+                clearTimeout(popupTimer);
+            }
+            document.body.appendChild(backdrop);
+            popup.style.display = 'none';
+            popup.style.left = '50%';
+            popup.style.top = '50%';
+            popup.style.position = 'fixed';
+            popup.style.transform = 'translate(-50%, -50%) scale(1)';
+            backdrop.style.zIndex = '';
+            backdrop.style.display = 'none';
+            backdrop.style.backdropFilter = '';
+            isLocked = false;
+        }
+
+        document.addEventListener('mouseout', function(e) {
+            let target = e.target.closest('.imgContainers');
+            let relatedTarget = e.relatedTarget;
+
+            if (target && (!relatedTarget || (!relatedTarget.matches('.popup-image') && !relatedTarget.closest('.imgContainers')))) {
+                hidePopup();
+                if (intervalP !== '') {
+                    popupTimer = setTimeout(() => {
+                        popupTimer = null;
+                    }, parseInt(intervalP));
+                }
+            }
+        });
+
+        popup.addEventListener('mouseout', function() {
+            hidePopup();
+            if (intervalP !== '') {
+                popupTimer = setTimeout(() => {
+                    popupTimer = null;
+                }, parseInt(intervalP));
+            }
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                hidePopup();
+            }
+        });
+    }
+
+    //-------------------------------------------------------------------------
+
+    // Is to be run
+    if (URLmatched) {
+        const indicatorBar = document.createElement('div');
+        indicatorBar.style.cssText = `
+        position: fixed;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9999;
+        height: 30px;
+        width: 50vw;
+        background: #0000;`;
+        document.body.appendChild(indicatorBar);
+
+        function toggleIndicator() {
+            enableP = 1 - enableP;
+            indicatorBar.style.background = enableP ? 'rgba(50, 190, 152, 0.5)' : 'rgba(174, 0, 1, 0.5)';
+            setTimeout(() => {
+                indicatorBar.style.background = '#0000';
+            }, 1000);
+            if (enableP === 1) {
+                HoverZoomMinus();
+            } else {
+                const existingPopup = document.body.querySelector('.popup-image');
+                if (existingPopup) document.body.removeChild(existingPopup);
+                const existingBackdrop = document.body.querySelector('.popup-backdrop');
+                if (existingBackdrop) document.body.removeChild(existingBackdrop);
+            }
+        }
+
+        let hoverTimeout;
+        indicatorBar.addEventListener('mouseenter', () => {
+            hoverTimeout = setTimeout(toggleIndicator, 500);
+        });
+        indicatorBar.addEventListener('mouseleave', () => {
+            clearTimeout(hoverTimeout);
+            indicatorBar.style.background = '#0000';
+        });
+        if (enableP === 1) {
+            HoverZoomMinus();
+        }
+
+    } else {
+        return;
+    }
+
+})();
