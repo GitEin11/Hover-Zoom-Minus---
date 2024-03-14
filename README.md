@@ -11,11 +11,11 @@ https://github.com/GitEin11/Hover-Zoom-Minus---/assets/84138811/cec97671-d9f9-45
 
 
 ##Lock then scroll
-Uploading lock and scroll.mp4…
+https://github.com/GitEin11/Hover-Zoom-Minus---/assets/84138811/d358f9a2-744c-44b2-8607-f0ddfb99d37a
 
 
 ##Turn on/off
-Uploading turn on off.mp4…
+https://github.com/GitEin11/Hover-Zoom-Minus---/assets/84138811/4ac6036d-eb72-459e-9c7a-321830a3c81d
 
 
 Easy to configure to work on most webpage.
