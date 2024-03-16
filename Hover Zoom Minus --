@@ -1,19 +1,25 @@
 // ==UserScript==
 // @name             Hover Zoom Minus --
 // @namespace        Hover Zoom Minus --
-// @version          1.0
+// @version          1.0.3
 // @description      image popup: zoom, pan, scroll
 // @author           Ein, Copilot AI
 // @match            *://*/*
 // @license          MIT
 // @grant            none
+// @downloadURL https://update.greasyfork.org/scripts/489742/Hover%20Zoom%20Minus%20--.user.js
+// @updateURL https://update.greasyfork.org/scripts/489742/Hover%20Zoom%20Minus%20--.meta.js
 // ==/UserScript==
 
 // 1. to use hover over the image(container) to view a popup of the target image
 // 2. to zoom in/out use wheel up/down. to reset press the scroll button
-// 3. click left mouse to lock popup this will make it move along with the mouse, click again to release
-// 4. while being locked the wheel up/down will act as scroll up/down
-// 5. to turn on/off hover at the bottom of the page
+// 3. click left mouse to lock popup this will make it move along with the mouse, click again to release (indicated by green border)
+// 4. while being locked"Y" the wheel up/down will act as scroll up/down
+// 5. double click will lock it on screen preventing it from being hidden
+// 6. hover below the image and click blue bar this will make a 3rd mode for wheel bottom, which will scroll next/previous image under an album
+// 7. while locked at screen (indicated by red outline) a single click with the blurred background will unblur it, only one popup per time, so the locked popup will prevent other popup to spawn
+// 8. double clicking on blurred background will de-spawn popup
+// 9. to turn on/off hover at the bottom of the page
 
 (function() {
     'use strict';
@@ -22,37 +28,58 @@
 
     // Define regexp of web page you want HoverZoomMinus to run with,
     // 1st array value - default status at start of page: '1' for on, '0' for off
-    // 2nd array value - spawn position for popup: 'center' for center, '' for cursor position
-    // 3rd array value - allowed interval for spawning popup; i.e. when exited on popup but imedietly touches an img container thus making it blinks or unsuable, experiment it with the right number
+    // 2nd array value - spawn position for popup: 'center' for center of screen, '' for cursor position
+    // 3rd array value - allowed interval for spawning popup; i.e. when exited on popup but immediately touches an img container thus making it "blink spawn blink spawn", experiment it with the right number
 
     const siteConfig = {
-        '^(.*\\.)?reddit\\.com\\/.*$': [1, 'center', '0'],
-        '^(.*\\.)?9gag\\.com$\\/.*$': [1, 'center', '100'],
-        '^(.*\\.)?feedly\\.com\\/.*$': [1, 'center', '200'],
-        '^(.*\\.)?boards\\.4chan\\.org\\/.*$': [1, '', '400'],
-        '^(.*\\.)?www\\.deviantart\\.com\\/.*$': [0, 'center', '300']
+        'reddit.com*': [1, 'center', '0'],
+        '9gag.com*': [1, 'center', '0'],
+        'feedly.com*': [1, 'center', '200'],
+        '4chan.org*': [1, '', '400'],
+        'deviantart.com*': [0, 'center', '300']
     };
 
-    // image container [hover area where popup triggers]
+    // image container [hover box where popup triggers]
     const imgContainers = `
-    /* ------- reddit */ ._3Oa0THmZ3f5iZXAQ0hBJ0k > div, ._35oEP5zLnhKEbj5BlkTBUA, ._1ti9kvv_PMZEF2phzAjsGW > div, ._28TEYBuEdOuE3kN6UyoKMa div, ._3Oa0THmZ3f5iZXAQ0hBJ0k.WjuR4W-BBrvdtABBeKUMx div,
+    /* ------- reddit */ ._3Oa0THmZ3f5iZXAQ0hBJ0k > div, ._35oEP5zLnhKEbj5BlkTBUA, ._1ti9kvv_PMZEF2phzAjsGW > div, ._28TEYBuEdOuE3kN6UyoKMa div, ._3Oa0THmZ3f5iZXAQ0hBJ0k.WjuR4W-BBrvdtABBeKUMx div, ._3m20hIKOhTTeMgPnfMbVNN,
     /* --------- 9gag */ .post-container .post-view > picture,
     /* ------- feedly */ .PinableImageContainer, .entryBody,
     /* -------- 4chan */ div.post div.file a,
-    /* --- deviantart */ ._3_LJY, ._2e1g3, ._2SlAD
+    /* --- deviantart */ ._3_LJY, ._2e1g3, ._2SlAD, ._1R2x6
     `;
     // target img
     const imgElements = `
-    /* ------- reddit */ ._2_tDEnGMLxpM6uOa2kaDB3, ._1dwExqTGJH2jnA-MYGkEL-,
+    /* ------- reddit */ ._2_tDEnGMLxpM6uOa2kaDB3, ._1dwExqTGJH2jnA-MYGkEL-, ._2_tDEnGMLxpM6uOa2kaDB3._1XWObl-3b9tPy64oaG6fax,
     /* --------- 9gag */ .post-container .post-view > picture > img,
     /* ------- feedly */ .pinable, .entryBody img,
-    /* -------- 4chan */ div.post div.file img:nth-child(2), div.post div.file img:nth-child(1), ._3Oa0THmZ3f5iZXAQ0hBJ0k.WjuR4W-BBrvdtABBeKUMx img,
-    /* --- deviantart */ ._3_LJY img._2e1g3 img, ._2SlAD img
+    /* -------- 4chan */ div.post div.file img:nth-child(1), ._3Oa0THmZ3f5iZXAQ0hBJ0k.WjuR4W-BBrvdtABBeKUMx img, div.post div.file .fileThumb img,
+    /* --- deviantart */ ._3_LJY img, ._2e1g3 img, ._2SlAD img, ._1R2x6 img
     `;
     // excluded element
     const nopeElements = `
     /* ------- reddit */ ._2ED-O3JtIcOqp8iIL1G5cg
     `;
+    // AlbumSelector take note that it will only load image those that are already on the DOM tree
+    // AlbumSelector take note that it will only load image those that are already on the DOM tree
+    // example reddit will not include all until you press tha navigator. so most of the time this will only load a few ones
+    // unless you update it via interacting with reddit's navigator button or maybe you could make a special function for "specialElements" so it will load and iclude all on image in the DOM tree
+    let albumSelector = [
+        /* ------- reddit */ { imgElement: '._1dwExqTGJH2jnA-MYGkEL-', albumElements: '._1apobczT0TzIKMWpza0OhL' },
+        /* ------- sample */ { imgElement: 'imgElementSelector2', albumElements: 'albumSelector2' },
+    ];
+
+    // specialElements were if targeted, will call it's paired function
+    const specialElements = [
+        /* -------- 4chan */ { selector: 'div.post div.file .fileThumb img', func: SP1 }
+    ];
+
+    function SP1(imageElement) {
+        let src = imageElement.getAttribute('src');
+        if (src && src.includes('s.jpg')) {
+            let newSrc = src.replace('s.jpg', '.jpg');
+            imageElement.setAttribute('src', newSrc);
+        }
+    }
 
     //-------------------------------------------------------------------------
 
@@ -68,163 +95,208 @@
         }
     });
 
+
     // The HoverZoomMinus Function---------------------------------------------
     function HoverZoomMinus() {
+        let isshowPopupEnabled = true;
+        isshowPopupEnabled = true;
 
-        // Style for the popup image
         const style = document.createElement('style');
         style.type = 'text/css';
         style.innerHTML = `
-        .popup-image {
-        max-height: calc(90vh - 10px);
-        z-index: 1000;
-        display: none;
-        cursor: move;}`;
+		.popup-container {
+			display: none;
+			z-index: 1001;
+			cursor: move;
+		}
+		.popup-image {
+			max-height: calc(90vh - 10px);
+			display: none;
+		}
+		.LockedX {
+			height: 40px;
+			width: 100%;
+			background: #0000;
+			position: absolute;
+			bottom: 0;
+			z-index: 9999; /* Above the popup image */
+		}
+		.popup-backdrop {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100vw;
+			height: 100vh;
+			display: none; /* Initially hidden */
+			z-index: 1000; /* Below the popup container */
+		}`;
         document.head.appendChild(style);
-
-        // Creating the popup image and backdrop
-        const popup = document.createElement('img');
-        popup.className = 'popup-image';
-        document.body.appendChild(popup);
         const backdrop = document.createElement('div');
         backdrop.className = 'popup-backdrop';
-        backdrop.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        display: none;`;
         document.body.appendChild(backdrop);
+        const popupContainer = document.createElement('div');
+        popupContainer.className = 'popup-container';
+        const popup = document.createElement('img');
+        popup.className = 'popup-image';
+        popupContainer.appendChild(popup);
+        const LockedX = document.createElement('div');
+        LockedX.className = 'LockedX';
+        popupContainer.appendChild(LockedX);
+        document.body.appendChild(popupContainer);
 
         //-------------------------------------------------------------------------
 
-        // Zoom and pan
-        let isLocked = false;
+        // Zoom, Pan, Scroll
+
+        let isLockedY = false;
+        let isLockedX = false;
         let offsetX, offsetY;
         let scale = 1;
         const ZOOM_SPEED = 0.005;
+        let clickTimeout;
+        let popupTimer;
 
-        popup.addEventListener('click', function(event) {
-            isLocked = !isLocked;
-            if (isLocked) {
-                let rect = popup.getBoundingClientRect();
-                offsetX = event.clientX - rect.left - (rect.width / 2);
-                offsetY = event.clientY - rect.top - (rect.height / 2);
-            }
+        popupContainer.addEventListener('click', function(event) {
+            if (clickTimeout) clearTimeout(clickTimeout);
+            clickTimeout = setTimeout(function() {
+                if (event.target.matches('.LockedX') || event.target.closest('.LockedX')) {
+                    event.stopPropagation();
+                } else {
+                    isLockedY = !isLockedY;
+                    if (isLockedY) {
+                        popupContainer.style.outline = ishidePopupEnabled ? '' : '3px solid #ae0001';
+                        isLockedX = false;
+                        popupContainer.style.borderTop = '';
+                        popupContainer.style.borderBottom = '';
+                        popupContainer.style.borderLeft = '3px solid #00ff00';
+                        popupContainer.style.borderRight = '3px solid #00ff00';
+                        let rect = popupContainer.getBoundingClientRect();
+                        offsetX = event.clientX - rect.left - (rect.width / 2);
+                        offsetY = event.clientY - rect.top - (rect.height / 2);
+                    } else {
+                        popupContainer.style.border = '';
+                    }
+                }}, 300);
         });
 
         document.addEventListener('mousemove', function(event) {
-            if (isLocked) {
-                popup.style.left = (event.clientX - offsetX) + 'px';
-                popup.style.top = (event.clientY - offsetY) + 'px';
+            if (isLockedY) {
+                popupContainer.style.left = (event.clientX - offsetX) + 'px';
+                popupContainer.style.top = (event.clientY - offsetY) + 'px';
             }
         });
 
-        function ZoomOrSroll(event) {
+        let imgElementsList = [];
+        function ZoomOrScroll(event) {
             event.preventDefault();
-            if (isLocked) {
+            if (isLockedY) {
                 let deltaY = event.deltaY * -ZOOM_SPEED;
-                let newTop = parseInt(popup.style.top) || 0;
+                let newTop = parseInt(popupContainer.style.top) || 0;
                 newTop += deltaY * 100;
-                popup.style.top = newTop + 'px';
-
+                popupContainer.style.top = newTop + 'px';
                 offsetY -= deltaY * 100;
+            } else if (isLockedX && currentZeroImgElement) {
+                let pair = albumSelector.find(pair => currentZeroImgElement.matches(pair.imgElement));
+                if (pair) {
+                    let ancestorElement = currentZeroImgElement.closest(pair.albumElements);
+                    if (ancestorElement) {
+                        imgElementsList = Array.from(ancestorElement.querySelectorAll(pair.imgElement));
+                        let zeroIndex = imgElementsList.indexOf(currentZeroImgElement);
+                        let direction = event.deltaY > 0 ? 1 : -1;
+                        let newIndex = (zeroIndex + direction + imgElementsList.length) % imgElementsList.length;
+                        currentZeroImgElement = imgElementsList[newIndex];
+                        popup.src = currentZeroImgElement.src;
+                    }
+                }
             } else {
                 scale += event.deltaY * -ZOOM_SPEED;
                 scale = Math.min(Math.max(0.125, scale), 10);
-                popup.style.transform = `translate(-50%, -50%) scale(${scale})`;
+                popupContainer.style.transform = `translate(-50%, -50%) scale(${scale})`;
             }
         }
 
-        popup.addEventListener('wheel', ZoomOrSroll);
+        popupContainer.addEventListener('wheel', ZoomOrScroll);
 
         //-------------------------------------------------------------------------
 
         // show popup
         function showPopup(src, mouseX, mouseY) {
+            if (!isshowPopupEnabled) return;
             popup.src = src;
             popup.style.display = 'block';
-            popup.style.position = 'fixed';
-            popup.style.transform = 'translate(-50%, -50%)';
+            popupContainer.style.display = 'block';
+            popupContainer.style.position = 'fixed';
+            popupContainer.style.transform = 'translate(-50%, -50%)';
             backdrop.style.display = 'block';
             backdrop.style.zIndex = '999';
             backdrop.style.backdropFilter = 'blur(10px)';
 
             if (positionP === 'center') {
-                popup.style.top = '50%';
-                popup.style.left = '50%';
+                popupContainer.style.top = '50%';
+                popupContainer.style.left = '50%';
             } else {
-                popup.style.top = `${mouseY}px`;
-                popup.style.left = `${mouseX}px`;
+                popupContainer.style.top = `${mouseY}px`;
+                popupContainer.style.left = `${mouseX}px`;
             }
         }
 
-        let popupTimer;
+        let currentZeroImgElement;
         document.addEventListener('mouseover', function(e) {
-
             if (popupTimer) return;
-
             let target = e.target.closest(imgContainers);
-            if (!target) return;
             if (target.querySelector(nopeElements)) return;
+            const imageElement = target.querySelector(imgElements);
+            specialElements.forEach(pair => {
+                if (imageElement.matches(pair.selector)) {
+                    pair.func(imageElement);
+                }
+            });
 
-            let currentContainer = target;
-            const imageElement = currentContainer.querySelector(imgElements);
             if (imageElement) {
+                currentZeroImgElement = imageElement;
                 if (intervalP === '') {
-                    if (positionP === 'center') {
-                        showPopup(imageElement.src);
-                    } else {
-                        showPopup(imageElement.src, e.clientX, e.clientY);
-                    }
+                    showPopup(imageElement.src, e.clientX, e.clientY);
                 } else {
                     popupTimer = setTimeout(() => {
-                        if (positionP === 'center') {
-                            showPopup(imageElement.src);
-                        } else {
-                            showPopup(imageElement.src, e.clientX, e.clientY);
-                        }
+                        showPopup(imageElement.src, e.clientX, e.clientY);
                         popupTimer = null;
                     }, parseInt(intervalP));
                 }
             }
         });
-
         //-------------------------------------------------------------------------
 
         // hide popup
         function hidePopup() {
+            if (!ishidePopupEnabled) return;
+            imgElementsList = [];
+            isshowPopupEnabled = true;
             if (popupTimer) {
                 clearTimeout(popupTimer);
             }
             document.body.appendChild(backdrop);
             popup.style.display = 'none';
-            popup.style.left = '50%';
-            popup.style.top = '50%';
-            popup.style.position = 'fixed';
-            popup.style.transform = 'translate(-50%, -50%) scale(1)';
+            popupContainer.style.display = 'none';
+            popupContainer.style.left = '50%';
+            popupContainer.style.top = '50%';
+            popupContainer.style.position = 'fixed';
+            popupContainer.style.transform = 'translate(-50%, -50%) scale(1)';
+            popupContainer.style.border = '';
+            popupContainer.style.outline = '';
             backdrop.style.zIndex = '';
             backdrop.style.display = 'none';
             backdrop.style.backdropFilter = '';
-            isLocked = false;
+            isLockedY = false;
+            isLockedX = false;
+
         }
 
-        document.addEventListener('mouseout', function(e) {
-            let target = e.target.closest('.imgContainers');
-            let relatedTarget = e.relatedTarget;
-
-            if (target && (!relatedTarget || (!relatedTarget.matches('.popup-image') && !relatedTarget.closest('.imgContainers')))) {
-                hidePopup();
-                if (intervalP !== '') {
-                    popupTimer = setTimeout(() => {
-                        popupTimer = null;
-                    }, parseInt(intervalP));
-                }
+        popupContainer.addEventListener('mouseout', function(event) {
+            let relatedTarget = event.relatedTarget;
+            if (relatedTarget && (popupContainer.contains(relatedTarget) || relatedTarget.matches('.imgContainers') || relatedTarget.closest('.imgContainers'))) {
+                return;
             }
-        });
 
-        popup.addEventListener('mouseout', function() {
             hidePopup();
             if (intervalP !== '') {
                 popupTimer = setTimeout(() => {
@@ -233,17 +305,77 @@
             }
         });
 
+
+
         document.addEventListener('keydown', function(event) {
             if (event.key === "Escape") {
                 event.preventDefault();
                 hidePopup();
             }
         });
+
+        //-------------------------------------------------------------------------
+
+        // lock popup in screen
+        let ishidePopupEnabled = true;
+
+        function togglehidePopup(event) {
+            ishidePopupEnabled = !ishidePopupEnabled;
+            popupContainer.style.outline = ishidePopupEnabled ? '' : '3px solid #ae0001';
+        }
+
+        popupContainer.addEventListener('dblclick', function(event) {
+            clearTimeout(clickTimeout);
+            togglehidePopup();
+        });
+        backdrop.addEventListener('dblclick', function(event) {
+            clearTimeout(clickTimeout);
+            ishidePopupEnabled = true;
+            hidePopup();
+        });
+
+
+        backdrop.addEventListener('click', function(event) {
+            if (clickTimeout) clearTimeout(clickTimeout);
+            clickTimeout = setTimeout(function() {
+                backdrop.style.zIndex = '';
+                backdrop.style.display = 'none';
+                backdrop.style.backdropFilter = '';
+                isshowPopupEnabled = false;
+            }, 300);
+        });
+
+
+        // Album scrolling
+        LockedX.addEventListener('mouseenter', function() {
+            LockedX.style.background = 'linear-gradient(to right, rgba(0, 0, 255, 0) 0%, rgba(0, 0, 255, 0.5) 25%, rgba(0, 0, 255, 0.5) 75%, rgba(0, 0, 255, 0) 100%)';
+        });
+
+        LockedX.addEventListener('mouseleave', function() {
+            LockedX.style.background = '#0000';
+        });
+
+        LockedX.addEventListener('click', function(event) {
+            ishidePopupEnabled = false;
+            isLockedX = !isLockedX;
+            if (isLockedX) {
+                isLockedY = false;
+                popupContainer.style.borderTop = '3px solid #00ff00';
+                popupContainer.style.borderBottom = '3px solid #00ff00';
+                popupContainer.style.borderLeft = '';
+                popupContainer.style.borderRight = '';
+                popupContainer.style.outline = '';
+            } else {
+                popupContainer.style.border = '';
+                popupContainer.style.outline = '3px solid #ae0001';
+            }
+
+        });
     }
 
     //-------------------------------------------------------------------------
 
-    // Is to be run
+    // Is to be run -----------------------------------------------------------
     if (URLmatched) {
         const indicatorBar = document.createElement('div');
         indicatorBar.style.cssText = `
@@ -259,17 +391,18 @@
 
         function toggleIndicator() {
             enableP = 1 - enableP;
-            indicatorBar.style.background = enableP ? 'rgba(50, 190, 152, 0.5)' : 'rgba(174, 0, 1, 0.5)';
+            indicatorBar.style.background = enableP ? 'linear-gradient(to right, rgba(50, 190, 152, 0) 0%, rgba(50, 190, 152, 0.5) 25%, rgba(50, 190, 152, 0.5) 75%, rgba(50, 190, 152, 0) 100%)' : 'linear-gradient(to right, rgba(174, 0, 1, 0) 0%, rgba(174, 0, 1, 0.5) 25%, rgba(174, 0, 1, 0.5) 75%, rgba(174, 0, 1, 0) 100%)';
             setTimeout(() => {
                 indicatorBar.style.background = '#0000';
             }, 1000);
             if (enableP === 1) {
                 HoverZoomMinus();
             } else {
-                const existingPopup = document.body.querySelector('.popup-image');
+                const existingPopup = document.body.querySelector('.popup-container');
                 if (existingPopup) document.body.removeChild(existingPopup);
                 const existingBackdrop = document.body.querySelector('.popup-backdrop');
                 if (existingBackdrop) document.body.removeChild(existingBackdrop);
+
             }
         }
 
@@ -284,7 +417,6 @@
         if (enableP === 1) {
             HoverZoomMinus();
         }
-
     } else {
         return;
     }
