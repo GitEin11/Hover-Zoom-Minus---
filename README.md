@@ -23,4 +23,11 @@ https://github.com/GitEin11/Hover-Zoom-Minus---/assets/84138811/d358f9a2-744c-44
 https://github.com/GitEin11/Hover-Zoom-Minus---/assets/84138811/4ac6036d-eb72-459e-9c7a-321830a3c81d
 
 
+#album sroll
+
+https://github.com/GitEin11/Hover-Zoom-Minus---/assets/84138811/75bbaebf-890b-49d7-97ab-e61dd8e83d25
+
+
+
+
 Easy to configure to work on most webpage.
