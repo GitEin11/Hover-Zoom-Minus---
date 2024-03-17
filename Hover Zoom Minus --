@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name             Hover Zoom Minus --
 // @namespace        Hover Zoom Minus --
-// @version          1.0.3
-// @description      image popup: zoom, pan, scroll
+// @version          1.0.5
+// @description      image popup: zoom, pan, scroll, pin, scale
 // @author           Ein, Copilot AI
 // @match            *://*/*
 // @license          MIT
@@ -19,7 +19,8 @@
 // 6. hover below the image and click blue bar this will make a 3rd mode for wheel bottom, which will scroll next/previous image under an album
 // 7. while locked at screen (indicated by red outline) a single click with the blurred background will unblur it, only one popup per time, so the locked popup will prevent other popup to spawn
 // 8. double clicking on blurred background will de-spawn popup
-// 9. to turn on/off hover at the bottom of the page
+// 9. click  on top right corner to scale image
+// 10. to turn on/off hover at the bottom of the page
 
 (function() {
     'use strict';
@@ -60,9 +61,8 @@
     /* ------- reddit */ ._2ED-O3JtIcOqp8iIL1G5cg
     `;
     // AlbumSelector take note that it will only load image those that are already on the DOM tree
-    // AlbumSelector take note that it will only load image those that are already on the DOM tree
     // example reddit will not include all until you press tha navigator. so most of the time this will only load a few ones
-    // unless you update it via interacting with reddit's navigator button or maybe you could make a special function for "specialElements" so it will load and iclude all on image in the DOM tree
+    // unless you update it via interacting with reddit's navigator button or maybe you could make a special function for "specialElements" so it will load and include all image in the DOM tree
     let albumSelector = [
         /* ------- reddit */ { imgElement: '._1dwExqTGJH2jnA-MYGkEL-', albumElements: '._1apobczT0TzIKMWpza0OhL' },
         /* ------- sample */ { imgElement: 'imgElementSelector2', albumElements: 'albumSelector2' },
@@ -113,36 +113,97 @@
 			max-height: calc(90vh - 10px);
 			display: none;
 		}
-		.LockedX {
-			height: 40px;
-			width: 100%;
-			background: #0000;
-			position: absolute;
-			bottom: 0;
-			z-index: 9999; /* Above the popup image */
-		}
 		.popup-backdrop {
 			position: fixed;
 			top: 0;
 			left: 0;
 			width: 100vw;
 			height: 100vh;
-			display: none; /* Initially hidden */
-			z-index: 1000; /* Below the popup container */
-		}`;
+			display: none;
+			z-index: 1000;
+		}
+		.LockedX {
+			height: 40px;
+			width: calc(100% - 80px);
+			background: #0000;
+			position: absolute;
+            left: 40px;
+			bottom: 0;
+			z-index: 9999;
+		}
+        .scaleBox,
+        .scaleCorner {
+            height: 40px;
+            width: 40px;
+            background: #0000;
+			position: absolute;
+        }
+        .scaleBox {
+            z-index: 9999;
+        }
+        .scaleCorner {
+			z-index: 9998;
+        }
+        .scaleBox.TR,
+        .scaleCorner.TR2 {
+			top: 0;
+            right: 0;
+         }
+        .scaleBox.TL,
+        .scaleCorner.TL2 {
+			top: 0;
+            left: 0;
+         }
+        .scaleBox.BR,
+        .scaleCorner.BR2 {
+			bottom: 0;
+            right: 0;
+         }
+        .scaleBox.BL,
+        .scaleCorner.BL2 {
+			bottom: 0;
+            left: 0;
+         }`;
         document.head.appendChild(style);
         const backdrop = document.createElement('div');
         backdrop.className = 'popup-backdrop';
         document.body.appendChild(backdrop);
         const popupContainer = document.createElement('div');
         popupContainer.className = 'popup-container';
+        document.body.appendChild(popupContainer);
         const popup = document.createElement('img');
         popup.className = 'popup-image';
         popupContainer.appendChild(popup);
+
         const LockedX = document.createElement('div');
         LockedX.className = 'LockedX';
         popupContainer.appendChild(LockedX);
-        document.body.appendChild(popupContainer);
+
+        const TR = document.createElement('div');
+        TR.className = 'scaleBox TR';
+        popupContainer.appendChild(TR);
+        const TL = document.createElement('div');
+        TL.className = 'scaleBox TL';
+        popupContainer.appendChild(TL);
+        const BR = document.createElement('div');
+        BR.className = 'scaleBox BR';
+        popupContainer.appendChild(BR);
+        const BL = document.createElement('div');
+        BL.className = 'scaleBox BL';
+        popupContainer.appendChild(BL);
+
+        const TR2 = document.createElement('div');
+        TR2.className = 'scaleCorner TR2';
+        popupContainer.appendChild(TR2);
+        const TL2 = document.createElement('div');
+        TL2.className = 'scaleCorner TL2';
+        popupContainer.appendChild(TL2);
+        const BR2 = document.createElement('div');
+        BR2.className = 'scaleCorner BR2';
+        popupContainer.appendChild(BR2);
+        const BL2 = document.createElement('div');
+        BL2.className = 'scaleCorner BL2';
+        popupContainer.appendChild(BL2);
 
         //-------------------------------------------------------------------------
 
@@ -150,26 +211,32 @@
 
         let isLockedY = false;
         let isLockedX = false;
-        let offsetX, offsetY;
+        let offsetX, offsetY, offsetXR, offsetYT, offsetXL, offsetYB, rectT, rectH, rectL, rectW, scaleCurrentX, scaleCurrentY;
         let scale = 1;
         const ZOOM_SPEED = 0.005;
         let clickTimeout;
         let popupTimer;
 
+        let isScale, isScaleTR, isScaleBR, isScaleTL, isScaleBL;
         popupContainer.addEventListener('click', function(event) {
             if (clickTimeout) clearTimeout(clickTimeout);
             clickTimeout = setTimeout(function() {
-                if (event.target.matches('.LockedX') || event.target.closest('.LockedX')) {
+                if (event.target.matches('.LockedX') || event.target.closest('.LockedX') || event.target.matches('.scaleBox') || event.target.closest('.scaleBox')) {
                     event.stopPropagation();
                 } else {
                     isLockedY = !isLockedY;
+                    isScale = false;
+                    TR2.style.border = '';
+                    BR2.style.border = '';
+                    TL2.style.border = '';
+                    BL2.style.border = '';
                     if (isLockedY) {
-                        popupContainer.style.outline = ishidePopupEnabled ? '' : '3px solid #ae0001';
+                        popupContainer.style.outline = ishidePopupEnabled ? '' : '6px solid #ae0001';
                         isLockedX = false;
                         popupContainer.style.borderTop = '';
                         popupContainer.style.borderBottom = '';
-                        popupContainer.style.borderLeft = '3px solid #00ff00';
-                        popupContainer.style.borderRight = '3px solid #00ff00';
+                        popupContainer.style.borderLeft = '6px solid #00ff00';
+                        popupContainer.style.borderRight = '6px solid #00ff00';
                         let rect = popupContainer.getBoundingClientRect();
                         offsetX = event.clientX - rect.left - (rect.width / 2);
                         offsetY = event.clientY - rect.top - (rect.height / 2);
@@ -179,10 +246,108 @@
                 }}, 300);
         });
 
+        document.querySelectorAll('.scaleBox').forEach(element => {
+            element.addEventListener('click', function(event) {
+                ishidePopupEnabled = false;
+                isScale = !isScale;
+                if (isScale) {
+                    isLockedY = false;
+                    const clickedElement = event.target;
+                    const popupContainer = clickedElement.parentElement;
+                    const currentTransform = window.getComputedStyle(popupContainer).transform;
+                    const matrixMatch = currentTransform.match(/^matrix\(([^,]+), [^,]+, [^,]+, ([^,]+), [^,]+, [^,]+\)$/);
+                    if (matrixMatch) {
+                        scaleCurrentX = parseFloat(matrixMatch[1]);
+                        scaleCurrentY = parseFloat(matrixMatch[2]);
+                    }
+                    let rect = element.getBoundingClientRect();
+                    offsetYT = event.clientY - rect.top;
+                    offsetXL = event.clientX - rect.left;
+                    offsetYB = rect.height + rect.top - event.clientY;
+                    offsetXR = rect.width + rect.left - event.clientX;
+                    rectT = rect.top;
+                    rectH = rect.height;
+                    rectW = rect.width;
+                    rectL = rect.left;
+                } else {
+                    TR2.style.border = '';
+                    BR2.style.border = '';
+                    TL2.style.border = '';
+                    BL2.style.border = '';
+                    popupContainer.style.outline = '6px solid #ae0001';
+                }
+            });
+        });
+
+        TR.addEventListener('click', function(event) {
+            isScaleTR = !isScaleTR;
+        });
+        TL.addEventListener('click', function(event) {
+            isScaleTL = !isScaleTL;
+        });
+        BL.addEventListener('click', function(event) {
+            isScaleBL = !isScaleBL;
+        });
+        BR.addEventListener('click', function(event) {
+            isScaleBR = !isScaleBR;
+        });
+
+        let scaleFactorY, scaleFactorX;
+        document.querySelectorAll('.scaleBox').forEach(element => {
+            element.addEventListener('mouseenter', function(event) {
+                element.style.height = '100%';
+                element.style.width = '100%';
+                TL2.style.borderTop = '6px solid #0000ff';
+                TR2.style.borderTop = '6px solid #0000ff';
+                TL2.style.borderLeft = '6px solid #0000ff';
+                BL2.style.borderLeft = '6px solid #0000ff';
+                TR2.style.borderRight = '6px solid #0000ff';
+                BR2.style.borderRight = '6px solid #0000ff';
+                BR2.style.borderBottom = '6px solid #0000ff';
+                BL2.style.borderBottom = '6px solid #0000ff';
+            });
+        });
+        document.querySelectorAll('.scaleBox').forEach(element => {
+            element.addEventListener('mouseleave', function(event) {
+                element.style.height = '40px';
+                element.style.width = '40px';
+                if (!isScale) {
+                    TL2.style.border = '';
+                    TR2.style.border = '';
+                    BL2.style.border = '';
+                    BR2.style.border = '';
+                }
+            });
+        });
+
+
         document.addEventListener('mousemove', function(event) {
             if (isLockedY) {
                 popupContainer.style.left = (event.clientX - offsetX) + 'px';
                 popupContainer.style.top = (event.clientY - offsetY) + 'px';
+            } else if (isScale) {
+                TL2.style.borderTop = '6px solid #0000ff';
+                TR2.style.borderTop = '6px solid #0000ff';
+                TL2.style.borderLeft = '6px solid #0000ff';
+                BL2.style.borderLeft = '6px solid #0000ff';
+                TR2.style.borderRight = '6px solid #0000ff';
+                BR2.style.borderRight = '6px solid #0000ff';
+                BR2.style.borderBottom = '6px solid #0000ff';
+                BL2.style.borderBottom = '6px solid #0000ff';
+                if (isScaleTR) {
+                    scaleFactorY = scaleCurrentY * (1 + (2 * (rectT - event.clientY + offsetYT) / (rectH)));
+                    scaleFactorX = scaleCurrentX * (-1 + (2 * (-rectL + event.clientX + offsetXR) / (rectW)));
+                } else if (isScaleBR) {
+                    scaleFactorY = scaleCurrentY * (-1 + (2 * (-rectT + event.clientY + offsetYB) / (rectH)));
+                    scaleFactorX = scaleCurrentX * (-1 + (2 * (-rectL + event.clientX + offsetXR) / (rectW)));
+                } else if (isScaleTL) {
+                    scaleFactorY = scaleCurrentY * (1 + (2 * (rectT - event.clientY + offsetYT) / (rectH)));
+                    scaleFactorX = scaleCurrentX * (1 + (2 * (rectL - event.clientX + offsetXL) / (rectW)));
+                } else {
+                    scaleFactorY = scaleCurrentY * (-1 + (2 * (-rectT + event.clientY + offsetYB) / (rectH)));
+                    scaleFactorX = scaleCurrentX * (1 + (2 * (rectL - event.clientX + offsetXL) / (rectW)));
+                }
+                popupContainer.style.transform = `translate(-50%, -50%) scale(${scaleFactorX}, ${scaleFactorY})`
             }
         });
 
@@ -211,7 +376,7 @@
             } else {
                 scale += event.deltaY * -ZOOM_SPEED;
                 scale = Math.min(Math.max(0.125, scale), 10);
-                popupContainer.style.transform = `translate(-50%, -50%) scale(${scale})`;
+                popupContainer.style.transform = `translate(-50%, -50%) scaleX(${scale}) scaleY(${scale})`;
             }
         }
 
@@ -226,7 +391,7 @@
             popup.style.display = 'block';
             popupContainer.style.display = 'block';
             popupContainer.style.position = 'fixed';
-            popupContainer.style.transform = 'translate(-50%, -50%)';
+            popupContainer.style.transform = 'translate(-50%, -50%) scaleX(1) scaleY(1)';
             backdrop.style.display = 'block';
             backdrop.style.zIndex = '999';
             backdrop.style.backdropFilter = 'blur(10px)';
@@ -280,7 +445,7 @@
             popupContainer.style.left = '50%';
             popupContainer.style.top = '50%';
             popupContainer.style.position = 'fixed';
-            popupContainer.style.transform = 'translate(-50%, -50%) scale(1)';
+            popupContainer.style.transform = 'translate(-50%, -50%) scaleX(1) scaleY(1)';
             popupContainer.style.border = '';
             popupContainer.style.outline = '';
             backdrop.style.zIndex = '';
@@ -288,7 +453,6 @@
             backdrop.style.backdropFilter = '';
             isLockedY = false;
             isLockedX = false;
-
         }
 
         popupContainer.addEventListener('mouseout', function(event) {
@@ -305,8 +469,6 @@
             }
         });
 
-
-
         document.addEventListener('keydown', function(event) {
             if (event.key === "Escape") {
                 event.preventDefault();
@@ -321,7 +483,7 @@
 
         function togglehidePopup(event) {
             ishidePopupEnabled = !ishidePopupEnabled;
-            popupContainer.style.outline = ishidePopupEnabled ? '' : '3px solid #ae0001';
+            popupContainer.style.outline = ishidePopupEnabled ? '' : '6px solid #ae0001';
         }
 
         popupContainer.addEventListener('dblclick', function(event) {
@@ -338,10 +500,14 @@
         backdrop.addEventListener('click', function(event) {
             if (clickTimeout) clearTimeout(clickTimeout);
             clickTimeout = setTimeout(function() {
-                backdrop.style.zIndex = '';
-                backdrop.style.display = 'none';
-                backdrop.style.backdropFilter = '';
-                isshowPopupEnabled = false;
+                if (isScale) {
+                    isScale = false;
+                } else {
+                    backdrop.style.zIndex = '';
+                    backdrop.style.display = 'none';
+                    backdrop.style.backdropFilter = '';
+                    isshowPopupEnabled = false;
+                }
             }, 300);
         });
 
@@ -360,14 +526,14 @@
             isLockedX = !isLockedX;
             if (isLockedX) {
                 isLockedY = false;
-                popupContainer.style.borderTop = '3px solid #00ff00';
-                popupContainer.style.borderBottom = '3px solid #00ff00';
+                popupContainer.style.borderTop = '6px solid #00ff00';
+                popupContainer.style.borderBottom = '6px solid #00ff00';
                 popupContainer.style.borderLeft = '';
                 popupContainer.style.borderRight = '';
                 popupContainer.style.outline = '';
             } else {
                 popupContainer.style.border = '';
-                popupContainer.style.outline = '3px solid #ae0001';
+                popupContainer.style.outline = '6px solid #ae0001';
             }
 
         });
@@ -402,10 +568,8 @@
                 if (existingPopup) document.body.removeChild(existingPopup);
                 const existingBackdrop = document.body.querySelector('.popup-backdrop');
                 if (existingBackdrop) document.body.removeChild(existingBackdrop);
-
             }
         }
-
         let hoverTimeout;
         indicatorBar.addEventListener('mouseenter', () => {
             hoverTimeout = setTimeout(toggleIndicator, 500);
