@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name             Hover Zoom Minus --
 // @namespace        Hover Zoom Minus --
-// @version          1.0.9.9
+// @version          1.0.9.10
 // @description      image popup: zoom, pan, scroll, pin, scale
 // @author           Ein, Copilot AI
 // @match            *://*/*
@@ -47,7 +47,7 @@
     const imgContainers = `
     /* ------- reddit */ ._3BxRNDoASi9FbGX01ewiLg, ._3Oa0THmZ3f5iZXAQ0hBJ0k > div, ._35oEP5zLnhKEbj5BlkTBUA, ._1ti9kvv_PMZEF2phzAjsGW > div,
     /* ------- reddit */ ._28TEYBuEdOuE3kN6UyoKMa div, ._3Oa0THmZ3f5iZXAQ0hBJ0k.WjuR4W-BBrvdtABBeKUMx div, ._3m20hIKOhTTeMgPnfMbVNN, zoomable-img.fixed,
-    /* --------- 9gag */ .post-container .post-view,
+    /* --------- 9gag */ .post-container .post-view > picture,
     /* ------- feedly */ .PinableImageContainer, .entryBody,
     /* -------- 4chan */ div.post div.file a,
     /* --- deviantart */ ._3_LJY, ._2e1g3, ._2SlAD, ._1R2x6
@@ -78,7 +78,8 @@
     const specialElements = [
         /* --- 4chan */ { selector: 'div.post div.file .fileThumb img', func: SP1 },
         /* -- reddit */ { selector: '._1dwExqTGJH2jnA-MYGkEL-', func: SP2 },
-        /* -- reddit */ { selector: '._2_tDEnGMLxpM6uOa2kaDB3', func: SPunblurSpoiler }
+        /* -- reddit */ { selector: '._2_tDEnGMLxpM6uOa2kaDB3', func: SP3 },
+        /* -- reddit */ { selector: '._2_tDEnGMLxpM6uOa2kaDB3', func: SPunblurSpoiler },
     ];
     // special function triggered when clicking LeftBar/ wheel down in album mode
     const specialLeftBar = [
@@ -123,6 +124,34 @@
         if (descendantElement) {
             document.querySelectorAll('.specialElement').forEach(e => e.remove());
             let title = descendantElement.getAttribute('title');
+            const specialContent = document.createElement('div');
+            specialContent.className = 'specialElement';
+            specialContent.style.cssText = 'position:fixed; bottom:80px; left:50%; transform:translateX(-50%); width:100vw; text-align:center; font-size:40px; color:white; text-shadow:0 0 10px rgba(255,255,255,0.7); z-index:99999;';
+            specialContent.textContent = title;
+            document.body.appendChild(specialContent);
+
+            var specialBackdrop = document.createElement('div');
+            specialBackdrop.className = 'specialElement';
+            specialBackdrop.style.cssText = 'position:fixed; bottom:60px; left:0; width:100vw; height:80px; background:rgba(0,0,0,0.2); backdrop-filter:blur(5px); z-index:99998;';
+            document.body.appendChild(specialBackdrop);
+
+        } else {
+            return;
+        }
+    }
+    function SP3(imageElement) {
+        if (enableP === 0) {
+            return;
+        }
+        let closestElement = imageElement.closest('._2rszc84L136gWQrkwH6IaM');
+        if (!closestElement) {
+            return;
+        }
+        let descendantElement = closestElement.querySelector('._1qeIAgB0cPwnLhDF9XSiJM');
+        if (descendantElement) {
+            console.log('SP3 execute');
+            document.querySelectorAll('.specialElement').forEach(e => e.remove());
+            let title = descendantElement.innerHTML;
             const specialContent = document.createElement('div');
             specialContent.className = 'specialElement';
             specialContent.style.cssText = 'position:fixed; bottom:80px; left:50%; transform:translateX(-50%); width:100vw; text-align:center; font-size:40px; color:white; text-shadow:0 0 10px rgba(255,255,255,0.7); z-index:99999;';
@@ -191,11 +220,11 @@
     function SPunblurSpoiler(imageElement) {
         const regexIdImg = /https:\/\/.*\/(.*)\?/;
 
-        const imgs = imageElement.parentElement.querySelectorAll('._2_tDEnGMLxpM6uOa2kaDB3[src*="?blur="]');
-        imgs.forEach(img => {
-            img.src = `https://i.redd.it/${img.src.match(regexIdImg)[1]}`;
-            img.classList.remove('_3oBPn1sFwq76ZAxXgwRhhn');
-        });
+        if (imageElement.src.includes('?blur=')) {
+            const idImageElement = imageElement.src.match(regexIdImg)[1];
+            imageElement.classList.remove('_3oBPn1sFwq76ZAxXgwRhhn');
+            imageElement.src = `https://i.redd.it/${idImageElement}`;
+        }
 
         let descendantElement = imageElement.closest('.m3aNC6yp8RrNM_-a0rrfa');
         if (descendantElement) {
